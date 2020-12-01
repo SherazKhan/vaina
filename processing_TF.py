@@ -4,7 +4,7 @@ from glob import glob
 from mne.preprocessing import compute_proj_ecg
 import numpy as np
 import matplotlib.pyplot as plt
-from mne.minimum_norm import source_induced_power
+from mne.time_frequency import psd_array_multitaper
 
 plt.ion()
 
@@ -34,7 +34,7 @@ event_dict = {'300': 300, '800': 800, '1300': 1300}
 reject_criteria = dict(mag=3000e-15,  # 3000 fT
                        grad=3000e-13)  # 3000 fT/cm
 
-tmin, tmax = (-0.2, 3.5)  # epoch from 200 ms before event to 3500 ms after it
+tmin, tmax = (-0.2, 1.1)  # epoch from 200 ms before event to 1000 ms after it
 baseline = (None, 0)  # baseline period from start of epoch to time=0
 
 raws = []
@@ -72,55 +72,39 @@ src = mne.setup_source_space(subject, spacing='ico5',
 fwd = mne.make_forward_solution(raw.info, trans=trans_file, src=src, bem=bem, meg=True, eeg=False, n_jobs=2)
 inv = mne.minimum_norm.make_inverse_operator(raw.info, fwd, cov, loose=0.2, depth=0.8)
 
-snr = 1.0  # use smaller SNR for raw data
-inv_method = 'dSPM'
-parc = 'aparc.a2009s'  # the parcellation to use, e.g., 'aparc' 'aparc.a2009s'
-lambda2 = 1.0 / snr ** 2
+labels = mne.read_labels_from_annot(subject, 'aparc', subjects_dir=subjects_mri_dir)
+labels_name = np.array([label.name for label in labels])
+stcs = mne.minimum_norm.apply_inverse_epochs(epochs, inv, lambda2=1. / 9., pick_ori='normal', return_generator=True)
 
-stcs = mne.minimum_norm.apply_inverse_epochs(epochs['300'], inv, lambda2, inv_method,
-                                             pick_ori=None, return_generator=True)
+label_ts = np.array(mne.extract_label_time_course(stcs, labels, inv['src'], return_generator=False))
 
-labels_parc = mne.read_labels_from_annot(subject, parc=parc, subjects_dir=subjects_mri_dir)
+psds, freqs = psd_array_multitaper(label_ts, epochs.info['sfreq'], fmin=2, fmax=55)
 
-# Average the source estimates within each label of the cortical parcellation
-# and each sub structures contained in the src space
-# If mode = 'mean_flip' this option is used only for the cortical label
-src = inv['src']
-label_ts = mne.extract_label_time_course(
-    stcs, labels_parc, src, mode='mean_flip', allow_empty=True,
-    return_generator=True)
 
-freqs = np.arange(2, 55)
-n_cycles = freqs / 3.
+for ix, inds in enumerate(np.split(np.arange(68), 4)):
+    plt.figure(figsize=(30, 15))
+    plt.rc('xtick', labelsize=25)
+    plt.rc('ytick', labelsize=25)
+    lineObjects = plt.plot(freqs, 20 * np.log10(psds.mean(0).T)[:, inds], linewidth=4)
+    plt.xlabel('Frequency (Hz)', fontsize=30)
+    plt.ylabel('Power (20*log10)', fontsize=30)
+    plt.xlim(2, 55)
+    plt.legend(iter(lineObjects), labels_name[inds], fontsize=18)
+    plt.grid(True)
+    plt.tight_layout()
+    plt.savefig(str(ix) + '.png')
 
-label = labels_parc[10]
-power, itc = source_induced_power(epochs['300'], inv, freqs, label, baseline=(-0.1, 0), baseline_mode='percent',
-                                  n_cycles=n_cycles, n_jobs=1)
 
-power = np.mean(power, axis=0)  # average over sources
-itc = np.mean(itc, axis=0)  # average over sources
-times = epochs.times
 
-##########################################################################
-# View time-frequency plots
-plt.subplots_adjust(0.1, 0.08, 0.96, 0.94, 0.2, 0.43)
-plt.subplot(2, 2, 2 * ii + 1)
-plt.imshow(20 * power,
-           extent=[times[0], times[-1], freqs[0], freqs[-1]],
-           aspect='auto', origin='lower', vmin=0., vmax=30., cmap='RdBu_r')
-plt.xlabel('Time (s)')
-plt.ylabel('Frequency (Hz)')
-plt.title('Power (%s)' % title)
-plt.colorbar()
 
-plt.subplot(2, 2, 2 * ii + 2)
-plt.imshow(itc,
-           extent=[times[0], times[-1], freqs[0], freqs[-1]],
-           aspect='auto', origin='lower', vmin=0, vmax=0.7,
-           cmap='RdBu_r')
-plt.xlabel('Time (s)')
-plt.ylabel('Frequency (Hz)')
-plt.title('ITC (%s)' % title)
-plt.colorbar()
 
-plt.show()
+
+
+
+
+
+
+
+
+
+
