@@ -4,7 +4,7 @@ from glob import glob
 from mne.preprocessing import compute_proj_ecg
 import numpy as np
 import matplotlib.pyplot as plt
-from mne.time_frequency import psd_array_multitaper
+from mne.time_frequency import psd_array_multitaper, tfr_array_multitaper
 
 plt.ion()
 
@@ -80,6 +80,11 @@ label_ts = np.array(mne.extract_label_time_course(stcs, labels, inv['src'], retu
 
 psds, freqs = psd_array_multitaper(label_ts, epochs.info['sfreq'], fmin=2, fmax=55)
 
+tfr_alpha = tfr_array_multitaper(label_ts, epochs.info['sfreq'], freqs=np.arange(8, 13), output='avg_power', n_jobs=4)
+tfr_beta = tfr_array_multitaper(label_ts, epochs.info['sfreq'], freqs=np.arange(16, 30), output='avg_power', n_jobs=4)
+tfr_lgamma = tfr_array_multitaper(label_ts, epochs.info['sfreq'], freqs=np.arange(30, 55), output='avg_power', n_jobs=4)
+tfr_hgamma = tfr_array_multitaper(label_ts, epochs.info['sfreq'], freqs=np.arange(65, 100), output='avg_power', n_jobs=4)
+
 
 for ix, inds in enumerate(np.split(np.arange(68), 4)):
     plt.figure(figsize=(15, 20))
@@ -94,9 +99,26 @@ for ix, inds in enumerate(np.split(np.arange(68), 4)):
     plt.tight_layout()
     plt.savefig(str(ix) + '.png')
 
+def plot_tf(data, stem):
+    times = epochs.times
+    for ix, inds in enumerate(np.split(np.arange(68), 4)):
+        plt.figure(figsize=(15, 20))
+        plt.rc('xtick', labelsize=25)
+        plt.rc('ytick', labelsize=25)
+        lineObjects = plt.plot(times, data.mean(1).T[:, inds], linewidth=4)
+        plt.xlabel('Time (s)', fontsize=30)
+        plt.ylabel('Power', fontsize=30)
+        plt.xlim(0, 1)
+        plt.legend(iter(lineObjects), labels_name[inds], fontsize=18)
+        plt.grid(True)
+        plt.tight_layout()
+        plt.savefig(str(ix) + '_' + stem + '.png')
 
 
-
+plot_tf(tfr_alpha, 'alpha')
+plot_tf(tfr_beta, 'beta')
+plot_tf(tfr_lgamma, 'low_gamma')
+plot_tf(tfr_hgamma, 'high_gamma')
 
 
 
