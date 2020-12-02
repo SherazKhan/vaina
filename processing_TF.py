@@ -82,7 +82,7 @@ psds, freqs = psd_array_multitaper(label_ts, epochs.info['sfreq'], fmin=2, fmax=
 
 
 for ix, inds in enumerate(np.split(np.arange(68), 4)):
-    plt.figure(figsize=(30, 15))
+    plt.figure(figsize=(15, 20))
     plt.rc('xtick', labelsize=25)
     plt.rc('ytick', labelsize=25)
     lineObjects = plt.plot(freqs, 20 * np.log10(psds.mean(0).T)[:, inds], linewidth=4)
